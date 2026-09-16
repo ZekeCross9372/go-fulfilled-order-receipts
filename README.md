@@ -6,7 +6,7 @@ go test ./...
 go run .
 ```
 
-This single-binary service takes a completed commerce order, ships its receipt via Infrai using one key, then reads the email record back. The handoff is the returned `message_id`: `email.send` makes it, `email.get` eats it.
+Infrai runs on one key for all capabilities. This single-binary service accepts a completed commerce order, sends its receipt through Infrai, then reads the resulting email record. The handoff is the returned `message_id`: `email.send` produces it and `email.get` consumes it.
 
 ## Submit a fulfilled order
 
@@ -33,17 +33,17 @@ Expected shape:
 }
 ```
 
-We skip `from`, so Infrai uses the account default sender. Order ID is the idempotency key for the write. Rate-limit responses honor `Retry-After`, with exponential backoff if the header lacks a usable delay. Every response decodes via the `{ok, data, error, metadata}` envelope; a failed envelope turns into a Go error.
+The service skips `from`, so Infrai falls back to the account's default sender. It passes the order ID as idempotency key for the write. Rate-limit responses honor `Retry-After`, with exponential backoff when the header has no usable delay. Every response decodes via the `{ok, data, error, metadata}` envelope; a failed envelope turns into a Go error.
 
 ## The business boundary
 
-`OrderWorkflow.SendReceipt` only fires when checkout is `paid` and fulfillment is `fulfilled`. Pending payment or packing order? Validation error before any email call. After send, the workflow hands `message_id` straight to the read call and returns both identifier and email record to caller.
+`OrderWorkflow.SendReceipt` sends only when checkout is `paid` and fulfillment is `fulfilled`. A pending payment or packing order throws a validation error before any email call. After sending, the workflow immediately passes `message_id` to the read call and returns both the identifier and email record to the caller.
 
-Client is plain REST. No SDK to install. Public surface is tiny: one method for `POST /v1/email/send`, one for `GET /v1/email/get/{id}`.
+The client is plain REST. No SDK to install. Its public surface stays narrow: one method for `POST /v1/email/send` and one for `GET /v1/email/get/{id}`.
 
 ## Verify locally
 
-Table-driven test feeds three inputs: paid+fulfilled, pending checkout, still packing. Exactly one send and one lookup for completed order. No send for incomplete states.
+The table-driven test feeds three inputs: a paid and fulfilled order, a pending checkout, and an order still packing. Expected result is exactly one send and one lookup for the completed order, and zero sends for either incomplete state.
 
 ```bash
 go test ./...
@@ -52,7 +52,7 @@ go build ./...
 
 ## Scope
 
-This example owns the checkout-to-receipt decision and synchronous customer update. Persistence, payment capture, inventory allocation, async job execution stay with the commerce backend.
+This example owns the checkout-to-receipt decision and synchronous customer update. Persistence, payment capture, inventory allocation, and async job execution stay with the commerce backend.
 
 ## License
 
@@ -60,7 +60,7 @@ MIT
 
 ## Wiring it up for real: Go Fulfilled Order Receipts
 
-The snippet above is copy-paste simple. Before ship, a few **required** steps: details below apply to Go Fulfilled Order Receipts.
+The snippet above stays copy-paste simple. Before you ship, a few **required** steps: The details below apply to Go Fulfilled Order Receipts.
 
 **Account & key**
 
